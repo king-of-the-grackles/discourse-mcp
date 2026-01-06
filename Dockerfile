@@ -3,6 +3,14 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
+# Install system dependencies for native modules (keytar needs libsecret)
+RUN apt-get update && apt-get install -y \
+    libsecret-1-dev \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy package files
 COPY package*.json ./
 
@@ -22,6 +30,11 @@ RUN npx @smithery/cli build -o .smithery/index.cjs
 FROM node:22-slim
 
 WORKDIR /app
+
+# Install runtime library for keytar (if needed by Smithery SDK)
+RUN apt-get update && apt-get install -y \
+    libsecret-1-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
