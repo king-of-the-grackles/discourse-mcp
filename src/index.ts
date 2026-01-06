@@ -32,7 +32,7 @@ import { SiteState, type AuthOverride } from "./site/state.js";
 // Export it so Smithery CLI can discover and use it.
 
 export const configSchema = z.object({
-  site: z.string().url().describe("Discourse site URL (e.g., https://meta.discourse.org)"),
+  site: z.string().url().optional().describe("Discourse site URL (e.g., https://meta.discourse.org)"),
   api_key: z.string().optional().describe("Admin API key for authenticated requests"),
   api_username: z.string().optional().describe("API username (required when using admin API key)"),
   user_api_key: z.string().optional().describe("User API key for user-level authenticated requests"),

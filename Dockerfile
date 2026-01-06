@@ -23,9 +23,6 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Build Smithery bundle
-RUN npx @smithery/cli build -o .smithery/index.cjs
-
 # Production stage
 FROM node:22-slim
 
@@ -43,11 +40,10 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 # Copy built files from builder
-COPY --from=builder /app/.smithery ./.smithery
 COPY --from=builder /app/dist ./dist
 
 # Expose port for HTTP transport
 EXPOSE 8080
 
-# Start the server
-CMD ["node", ".smithery/index.cjs"]
+# Start the HTTP server
+CMD ["node", "dist/smithery-entry.js"]
