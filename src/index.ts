@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer as createHttpServer } from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -24,6 +24,131 @@ import { type AuthMode } from "./http/client.js";
 import { registerAllTools, type ToolsMode } from "./tools/registry.js";
 import { tryRegisterRemoteTools } from "./tools/remote/tool_exec_api.js";
 import { SiteState, type AuthOverride } from "./site/state.js";
+
+// =============================================================================
+// Smithery Configuration Schema
+// =============================================================================
+// This schema is used by Smithery to generate configuration forms for users.
+// Export it so Smithery CLI can discover and use it.
+
+export const configSchema = z.object({
+  site: z.string().url().describe("Discourse site URL (e.g., https://meta.discourse.org)"),
+  api_key: z.string().optional().describe("Admin API key for authenticated requests"),
+  api_username: z.string().optional().describe("API username (required when using admin API key)"),
+  user_api_key: z.string().optional().describe("User API key for user-level authenticated requests"),
+  user_api_client_id: z.string().optional().describe("User API client ID (required when using user API key)"),
+  read_only: z.boolean().default(true).describe("Enable read-only mode (prevents write operations)"),
+  allow_writes: z.boolean().default(false).describe("Allow write operations (create posts, topics, etc.)"),
+  tools_mode: z
+    .enum(["auto", "discourse_api_only", "tool_exec_api"])
+    .default("auto")
+    .describe("Tool discovery mode: auto (detect), discourse_api_only (built-in only), tool_exec_api (remote tools)"),
+  default_search: z.string().optional().describe("Default search prefix added to every search query"),
+  max_read_length: z
+    .number()
+    .int()
+    .positive()
+    .default(50000)
+    .describe("Maximum characters to return when reading post content"),
+  log_level: z
+    .enum(["silent", "error", "info", "debug"])
+    .default("info")
+    .describe("Logging verbosity level"),
+});
+
+export type SmitheryConfig = z.infer<typeof configSchema>;
+
+// =============================================================================
+// Smithery createServer Factory Function
+// =============================================================================
+// This is the main export for Smithery. It creates and returns an MCP server
+// configured with the provided session config. Smithery handles the transport.
+
+export default async function createServer({
+  config,
+}: {
+  config: SmitheryConfig;
+}) {
+  const version = await getPackageVersion();
+  const logger = new Logger(config.log_level);
+
+  logger.info(`Creating Discourse MCP server v${version} for Smithery`);
+  logger.debug(`Config: ${JSON.stringify(redactObject({ ...config }))}`);
+
+  // Build auth from Smithery config (single site mode)
+  let auth: AuthMode = { type: "none" };
+  const authOverrides: AuthOverride[] = [];
+
+  if (config.api_key && config.api_username) {
+    // Admin API key auth
+    authOverrides.push({
+      site: config.site,
+      api_key: config.api_key,
+      api_username: config.api_username,
+    });
+  } else if (config.user_api_key && config.user_api_client_id) {
+    // User API key auth
+    authOverrides.push({
+      site: config.site,
+      user_api_key: config.user_api_key,
+      user_api_client_id: config.user_api_client_id,
+    });
+  }
+
+  // Initialize site state
+  const siteState = new SiteState({
+    logger,
+    timeoutMs: 15000,
+    defaultAuth: auth,
+    authOverrides: authOverrides.length > 0 ? authOverrides : undefined,
+  });
+
+  // Create MCP server
+  const server = new McpServer(
+    {
+      name: "@discourse/mcp",
+      version,
+    },
+    {
+      capabilities: {
+        tools: { listChanged: false },
+      },
+    }
+  );
+
+  const allowWrites = Boolean(
+    config.allow_writes && !config.read_only && authOverrides.length > 0
+  );
+
+  // Validate and preselect the site
+  try {
+    const { base, client } = siteState.buildClientForSite(config.site);
+    const about = (await client.get(`/about.json`)) as any;
+    const title = about?.about?.title || about?.title || base;
+    siteState.selectSite(base);
+    logger.info(`Connected to site: ${base} (${title})`);
+  } catch (e: any) {
+    throw new Error(`Failed to connect to site ${config.site}: ${e?.message || String(e)}`);
+  }
+
+  // Register all tools
+  await registerAllTools(server as any, siteState, logger, {
+    allowWrites,
+    toolsMode: config.tools_mode,
+    hideSelectSite: true, // Always hide in Smithery mode (site is pre-configured)
+    defaultSearchPrefix: config.default_search,
+    maxReadLength: config.max_read_length,
+  });
+
+  // Discover remote tools if enabled
+  if (config.tools_mode !== "discourse_api_only") {
+    await tryRegisterRemoteTools(server as any, siteState, logger);
+  }
+
+  // Return the underlying Server object (NOT the McpServer wrapper)
+  // Smithery will handle connecting the transport
+  return server.server;
+}
 
 const DEFAULT_TIMEOUT_MS = 15000;
 
@@ -244,7 +369,7 @@ async function main() {
 
     await server.connect(transport);
 
-    const httpServer = createServer(async (req, res) => {
+    const httpServer = createHttpServer(async (req, res) => {
       // Health check endpoint
       if (req.method === "GET" && req.url === "/health") {
         res.writeHead(200, { "Content-Type": "application/json" });

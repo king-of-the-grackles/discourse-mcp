@@ -47,34 +47,40 @@ export async function tryRegisterRemoteTools(
 
     for (const t of list) {
       const safeName = makeSafeName(t.name);
-      const schema = jsonSchemaToZod(t.inputSchema) ?? z.object({}).strict();
-      server.registerTool(
+      const schema = jsonSchemaToZod(t.inputSchema) ?? z.object({});
+      const schemaShape = (schema as z.ZodObject<any>).shape || {};
+
+      // Dynamic tool handler - args come from the remote API's schema
+      const handler = async (args: Record<string, unknown>) => {
+        try {
+          const { client } = siteState.ensureSelectedSite();
+          const res = (await client.post(`/ai/tools/${encodeURIComponent(t.name)}/call`, {
+            arguments: args,
+            context: {},
+          })) as any;
+          const result = res?.result ?? res;
+          const details = res?.details;
+          const links = extractLinks(details);
+          const lines = [String(result || "")];
+          if (links.length) {
+            lines.push("\nArtifacts:");
+            for (const l of links) lines.push(`- [${l.name || l.url}](${l.url})`);
+          }
+          return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+        } catch (e: any) {
+          return { content: [{ type: "text" as const, text: `Remote tool ${t.name} failed: ${e?.message || String(e)}` }], isError: true };
+        }
+      };
+
+      // Use type assertion for dynamic registration since schema is determined at runtime
+      (server as any).registerTool(
         safeName,
         {
           title: t.name,
           description: t.description || "",
-          inputSchema: (schema as z.ZodObject<any>).shape ?? {},
+          inputSchema: schemaShape,
         },
-        async (args: any, _extra: any) => {
-          try {
-            const { client } = siteState.ensureSelectedSite();
-            const res = (await client.post(`/ai/tools/${encodeURIComponent(t.name)}/call`, {
-              arguments: args,
-              context: {},
-            })) as any;
-            const result = res?.result ?? res;
-            const details = res?.details;
-            const links = extractLinks(details);
-            const lines = [String(result || "")];
-            if (links.length) {
-              lines.push("\nArtifacts:");
-              for (const l of links) lines.push(`- [${l.name || l.url}](${l.url})`);
-            }
-            return { content: [{ type: "text", text: lines.join("\n") }] };
-          } catch (e: any) {
-            return { content: [{ type: "text", text: `Remote tool ${t.name} failed: ${e?.message || String(e)}` }], isError: true };
-          }
-        }
+        handler
       );
     }
     logger.info(`Registered ${list.length} remote tool(s) from Tool Execution API.`);
