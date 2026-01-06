@@ -64,30 +64,30 @@ export type SmitheryConfig = z.infer<typeof configSchema>;
 // This is the main export for Smithery. It creates and returns an MCP server
 // configured with the provided session config. Smithery handles the transport.
 
-export default async function createServer({
+export default function createServer({
   config,
 }: {
   config: SmitheryConfig;
 }) {
-  const version = await getPackageVersion();
-  const logger = new Logger(config.log_level);
+  // Use hardcoded version for Smithery - avoid async file reads during initialization
+  // Smithery calls createServer with dummy config to discover capabilities
+  const version = "0.1.15";
+  const logger = new Logger(config.log_level ?? "info");
 
   logger.info(`Creating Discourse MCP server v${version} for Smithery`);
-  logger.debug(`Config: ${JSON.stringify(redactObject({ ...config }))}`);
 
   // Build auth from Smithery config (single site mode)
   let auth: AuthMode = { type: "none" };
   const authOverrides: AuthOverride[] = [];
 
-  if (config.api_key && config.api_username) {
-    // Admin API key auth
+  // Only build auth if we have valid config (not dummy config from Smithery discovery)
+  if (config.site && config.api_key && config.api_username) {
     authOverrides.push({
       site: config.site,
       api_key: config.api_key,
       api_username: config.api_username,
     });
-  } else if (config.user_api_key && config.user_api_client_id) {
-    // User API key auth
+  } else if (config.site && config.user_api_key && config.user_api_client_id) {
     authOverrides.push({
       site: config.site,
       user_api_key: config.user_api_key,
@@ -120,30 +120,30 @@ export default async function createServer({
     config.allow_writes && !config.read_only && authOverrides.length > 0
   );
 
-  // Validate and preselect the site
-  try {
-    const { base, client } = siteState.buildClientForSite(config.site);
-    const about = (await client.get(`/about.json`)) as any;
-    const title = about?.about?.title || about?.title || base;
-    siteState.selectSite(base);
-    logger.info(`Connected to site: ${base} (${title})`);
-  } catch (e: any) {
-    throw new Error(`Failed to connect to site ${config.site}: ${e?.message || String(e)}`);
+  // Pre-select the site if provided (no HTTP validation - that happens on first tool call)
+  // Smithery may call with dummy config, so only select if site looks valid
+  if (config.site && config.site.startsWith("http")) {
+    try {
+      const { base } = siteState.buildClientForSite(config.site);
+      siteState.selectSite(base);
+      logger.info(`Site configured: ${base}`);
+    } catch (e: any) {
+      logger.debug(`Could not pre-select site: ${e?.message || String(e)}`);
+    }
   }
 
-  // Register all tools
-  await registerAllTools(server as any, siteState, logger, {
+  // Register all tools synchronously
+  // Note: registerAllTools is sync - it just sets up handlers
+  registerAllTools(server as any, siteState, logger, {
     allowWrites,
-    toolsMode: config.tools_mode,
+    toolsMode: config.tools_mode ?? "auto",
     hideSelectSite: true, // Always hide in Smithery mode (site is pre-configured)
     defaultSearchPrefix: config.default_search,
-    maxReadLength: config.max_read_length,
+    maxReadLength: config.max_read_length ?? 50000,
   });
 
-  // Discover remote tools if enabled
-  if (config.tools_mode !== "discourse_api_only") {
-    await tryRegisterRemoteTools(server as any, siteState, logger);
-  }
+  // Skip remote tools discovery during initialization - it requires HTTP calls
+  // Remote tools will be discovered lazily if needed
 
   // Return the underlying Server object (NOT the McpServer wrapper)
   // Smithery will handle connecting the transport
