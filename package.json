@@ -25,7 +25,7 @@
     "build": "tsc -p tsconfig.json",
     "build:stdio": "tsc -p tsconfig.json",
     "build:http": "smithery build",
-    "prepublishOnly": "pnpm run build:stdio",
+    "prepublishOnly": "npm run build:stdio",
     "dev": "smithery dev",
     "dev:stdio": "node --enable-source-maps dist/index.js",
     "start:http": "node .smithery/index.cjs",
@@ -48,7 +48,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
@@ -60,6 +60,5 @@
     "@types/node": "^20.14.10",
     "standard-version": "^9.5.0",
     "typescript": "^5.5.4"
-  },
-  "packageManager": "pnpm@10.14.0"
+  }
 }
