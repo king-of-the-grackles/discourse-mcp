@@ -247,9 +247,15 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((err) => {
-    console.error(`Fatal error: ${err}`);
-    process.exit(1);
-  });
+// Only run main() when this file is executed directly (not when bundled/imported)
+// Note: import.meta.url is empty in CJS builds, so this block won't run in Smithery deployments
+try {
+  if (typeof import.meta?.url === 'string' && import.meta.url && import.meta.url === `file://${process.argv[1]}`) {
+    main().catch((err) => {
+      console.error(`Fatal error: ${err}`);
+      process.exit(1);
+    });
+  }
+} catch {
+  // Ignore - we're likely in a CJS bundle where import.meta is not available
 }
