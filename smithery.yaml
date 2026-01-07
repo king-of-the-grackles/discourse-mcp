@@ -11,7 +11,6 @@ startCommand:
     properties:
       site:
         type: "string"
-        format: "uri"
         title: "Discourse Site URL"
         description: "Full URL to your Discourse site (e.g., https://meta.discourse.org)"
       api_key:
@@ -61,7 +60,6 @@ startCommand:
         description: "Logging verbosity: 'silent' for no logs, 'error' for errors only, 'info' for standard, 'debug' for verbose"
         enum: ["silent", "error", "info", "debug"]
         default: "info"
-    required: []
   exampleConfig:
     site: "https://meta.discourse.org"
     read_only: true

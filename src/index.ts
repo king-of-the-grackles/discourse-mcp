@@ -109,7 +109,7 @@ export default function createServer({
       name: "@discourse/mcp",
       version,
       icons: [{
-        src: "https://raw.githubusercontent.com/discourse/discourse-mcp/main/assets/icon.svg",
+        src: "https://raw.githubusercontent.com/king-of-the-grackles/discourse-mcp/main/assets/icon.svg",
         sizes: ["512x512"],
         mimeType: "image/svg+xml",
       }],
@@ -449,7 +449,7 @@ async function main() {
       name: "@discourse/mcp",
       version,
       icons: [{
-        src: "https://raw.githubusercontent.com/discourse/discourse-mcp/main/assets/icon.svg",
+        src: "https://raw.githubusercontent.com/king-of-the-grackles/discourse-mcp/main/assets/icon.svg",
         sizes: ["512x512"],
         mimeType: "image/svg+xml",
       }],
