@@ -51,12 +51,10 @@ startCommand:
         title: "Default Search Prefix"
         description: "Prefix automatically added to all search queries (e.g., 'category:support' to filter searches)"
       max_read_length:
-        type: "integer"
+        type: "number"
         title: "Max Content Length"
         description: "Maximum characters to return per content item. Larger values return more content but may hit token limits"
         default: 50000
-        minimum: 1000
-        maximum: 100000
       log_level:
         type: "string"
         title: "Log Level"
