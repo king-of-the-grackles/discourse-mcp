@@ -11,10 +11,12 @@ import { dirname, join } from "node:path";
 
 // Configure transformers.js with absolute paths to fix MCP server environment issues.
 // The default relative paths fail when the server runs from a different working directory.
+// Note: require.resolve returns the dist/index.js path, so we need to go up to the package root.
 const require = createRequire(import.meta.url);
-const transformersPath = dirname(require.resolve("@huggingface/transformers"));
-env.cacheDir = join(transformersPath, ".cache");
-env.localModelPath = join(transformersPath, "models");
+const transformersDistPath = dirname(require.resolve("@huggingface/transformers"));
+const transformersRoot = dirname(transformersDistPath); // Go up from dist/ to package root
+env.cacheDir = join(transformersRoot, ".cache");
+env.localModelPath = join(transformersRoot, "models");
 env.allowLocalModels = true;
 env.useFSCache = true;
 
