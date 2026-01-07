@@ -1,114 +1,205 @@
 /**
- * ChromaDB client singleton for querying the discourse_sites collection.
- * Requires environment variables: CHROMA_API_KEY, CHROMA_TENANT, CHROMA_DATABASE
+ * ChromaDB proxy client for querying the discourse_sites collection.
+ * Uses the reddit-mcp-vector-db proxy server which handles embeddings server-side.
+ *
+ * Requires environment variable: CHROMA_PROXY_API_KEY
+ * Optional: CHROMA_PROXY_URL (defaults to https://reddit-mcp-vector-db.onrender.com)
  */
 
-import { ChromaClient, type Collection } from "chromadb";
-import { DefaultEmbeddingFunction } from "@chroma-core/default-embed";
-import { env } from "@huggingface/transformers";
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-
-// Configure transformers.js with absolute paths to fix MCP server environment issues.
-// The default relative paths fail when the server runs from a different working directory.
-// Note: require.resolve returns the dist/index.js path, so we need to go up to the package root.
-const require = createRequire(import.meta.url);
-const transformersDistPath = dirname(require.resolve("@huggingface/transformers"));
-const transformersRoot = dirname(transformersDistPath); // Go up from dist/ to package root
-env.cacheDir = join(transformersRoot, ".cache");
-env.localModelPath = join(transformersRoot, "models");
-env.allowLocalModels = true;
-env.useFSCache = true;
-
+const PROXY_URL =
+  process.env.CHROMA_PROXY_URL || "https://reddit-mcp-vector-db.onrender.com";
 const COLLECTION_NAME = "discourse_sites";
 
-let clientInstance: ChromaClient | null = null;
-let collectionInstance: Collection | null = null;
+/**
+ * Response type from ChromaDB proxy /query endpoint
+ */
+export interface ChromaQueryResponse {
+  ids: string[][];
+  embeddings: (number[] | null)[][] | null;
+  documents: (string | null)[][] | null;
+  uris: null;
+  data: null;
+  metadatas: (Record<string, unknown> | null)[][];
+  distances: (number | null)[][] | null;
+  included: string[];
+}
 
 /**
- * Validate required environment variables are present.
- * Throws immediately if any are missing.
+ * Response type from ChromaDB proxy /get endpoint
  */
-function validateEnvVars(): { apiKey: string; tenant: string; database: string } {
-  const apiKey = process.env.CHROMA_API_KEY;
-  const tenant = process.env.CHROMA_TENANT;
-  const database = process.env.CHROMA_DATABASE;
+export interface ChromaGetResponse {
+  ids: string[];
+  embeddings: (number[] | null)[] | null;
+  documents: (string | null)[] | null;
+  uris: null;
+  data: null;
+  metadatas: (Record<string, unknown> | null)[];
+  included: string[];
+}
 
-  const missing: string[] = [];
-  if (!apiKey) missing.push("CHROMA_API_KEY");
-  if (!tenant) missing.push("CHROMA_TENANT");
-  if (!database) missing.push("CHROMA_DATABASE");
+/**
+ * Include options for ChromaDB queries
+ */
+type IncludeOption = "embeddings" | "metadatas" | "documents";
 
-  if (missing.length > 0) {
+/**
+ * Get the API key, throwing if not configured.
+ */
+function getApiKey(): string {
+  const apiKey = process.env.CHROMA_PROXY_API_KEY;
+  if (!apiKey) {
     throw new Error(
-      `Missing required ChromaDB environment variables: ${missing.join(", ")}. ` +
-        `Set these to use the search_discourse_communities tool.`
+      "Missing CHROMA_PROXY_API_KEY environment variable. " +
+        "Set this to use the search_discourse_communities tool."
     );
   }
-
-  return { apiKey: apiKey!, tenant: tenant!, database: database! };
+  return apiKey;
 }
 
 /**
- * Get or create the ChromaDB client instance.
- * Throws if environment variables are not configured.
+ * Query the collection via the proxy server using text queries.
+ * The proxy handles embeddings server-side.
+ *
+ * @param queryTexts - Array of query strings for semantic search
+ * @param nResults - Maximum number of results to return (default: 10)
+ * @param where - Optional metadata filter clause
+ * @returns ChromaDB query response with ids, metadatas, and distances
  */
-function getClient(): ChromaClient {
-  if (clientInstance) {
-    return clientInstance;
-  }
-
-  const { apiKey, tenant, database } = validateEnvVars();
-
-  // ChromaDB v3 client API for Chroma Cloud
-  clientInstance = new ChromaClient({
-    host: "api.trychroma.com",
-    ssl: true,
+export async function queryByText(
+  queryTexts: string[],
+  nResults: number = 10,
+  where?: Record<string, unknown>
+): Promise<ChromaQueryResponse> {
+  const response = await fetch(`${PROXY_URL}/query`, {
+    method: "POST",
     headers: {
-      "X-Chroma-Token": apiKey,
+      "Content-Type": "application/json",
+      "X-API-Key": getApiKey(),
     },
-    tenant,
-    database,
+    body: JSON.stringify({
+      query_texts: queryTexts,
+      n_results: nResults,
+      where,
+      collection_name: COLLECTION_NAME,
+    }),
   });
 
-  return clientInstance;
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`ChromaDB proxy error (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
 }
 
 /**
- * Get the discourse_sites collection from ChromaDB.
- * Lazily initializes the client and collection on first use.
- * Throws if environment variables are not configured or collection doesn't exist.
+ * Query the collection via the proxy server using embedding vectors.
+ * Used for nearest-neighbor queries (e.g., find similar communities).
+ *
+ * @param queryEmbeddings - Array of embedding vectors
+ * @param nResults - Maximum number of results to return (default: 10)
+ * @param where - Optional metadata filter clause
+ * @returns ChromaDB query response with ids, metadatas, and distances
  */
-export async function getChromaCollection(): Promise<Collection> {
-  if (collectionInstance) {
-    return collectionInstance;
+export async function queryByEmbedding(
+  queryEmbeddings: number[][],
+  nResults: number = 10,
+  where?: Record<string, unknown>
+): Promise<ChromaQueryResponse> {
+  const response = await fetch(`${PROXY_URL}/query`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": getApiKey(),
+    },
+    body: JSON.stringify({
+      query_embeddings: queryEmbeddings,
+      n_results: nResults,
+      where,
+      collection_name: COLLECTION_NAME,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`ChromaDB proxy error (${response.status}): ${errorText}`);
   }
 
-  const client = getClient();
-  const embeddingFunction = new DefaultEmbeddingFunction();
+  return response.json();
+}
 
+/**
+ * Get documents by ID from the collection.
+ *
+ * @param ids - Array of document IDs to retrieve
+ * @param include - What to include in the response
+ * @returns ChromaDB get response with ids, metadatas, and optionally embeddings
+ */
+export async function getByIds(
+  ids: string[],
+  include: IncludeOption[] = ["metadatas"]
+): Promise<ChromaGetResponse> {
+  const response = await fetch(`${PROXY_URL}/get`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": getApiKey(),
+    },
+    body: JSON.stringify({
+      ids,
+      include,
+      collection_name: COLLECTION_NAME,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`ChromaDB proxy error (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get documents by metadata filter from the collection.
+ *
+ * @param where - Metadata filter clause (e.g., { url: "https://example.com" })
+ * @param include - What to include in the response
+ * @returns ChromaDB get response with ids, metadatas, and optionally embeddings
+ */
+export async function getByMetadata(
+  where: Record<string, unknown>,
+  include: IncludeOption[] = ["metadatas"]
+): Promise<ChromaGetResponse> {
+  const response = await fetch(`${PROXY_URL}/get`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": getApiKey(),
+    },
+    body: JSON.stringify({
+      where,
+      include,
+      collection_name: COLLECTION_NAME,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`ChromaDB proxy error (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Check if the proxy is available and healthy.
+ */
+export async function checkProxyHealth(): Promise<boolean> {
   try {
-    collectionInstance = await client.getCollection({
-      name: COLLECTION_NAME,
-      embeddingFunction,
-    });
-  } catch (error: any) {
-    if (error?.message?.includes("does not exist")) {
-      throw new Error(
-        `ChromaDB collection '${COLLECTION_NAME}' not found. ` +
-          `Ensure the collection has been created and indexed.`
-      );
-    }
-    throw error;
+    const response = await fetch(`${PROXY_URL}/health`);
+    return response.ok;
+  } catch {
+    return false;
   }
-
-  return collectionInstance;
-}
-
-/**
- * Reset the client singleton (useful for testing).
- */
-export function resetChromaClient(): void {
-  clientInstance = null;
-  collectionInstance = null;
 }

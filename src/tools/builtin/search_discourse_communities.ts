@@ -7,7 +7,13 @@
 
 import { z } from "zod";
 import type { RegisterFn } from "../types.js";
-import { getChromaCollection } from "../../chroma/client.js";
+import {
+  queryByText,
+  queryByEmbedding,
+  getByIds,
+  getByMetadata,
+  type ChromaGetResponse,
+} from "../../chroma/client.js";
 import {
   calculateConfidenceFromDistance,
   classifyMatchTier,
@@ -82,58 +88,46 @@ function transformResults(
 }
 
 /**
- * Resolve a URL or ID to a ChromaDB document ID.
+ * Resolve a URL or ID to a document with its embedding.
  */
-async function resolveToDocumentId(
-  collection: Awaited<ReturnType<typeof getChromaCollection>>,
+async function resolveToDocument(
   input: string
-): Promise<{ id: string; metadata: DiscourseMetadata }> {
+): Promise<{ id: string; metadata: DiscourseMetadata; embedding: number[] }> {
+  let result: ChromaGetResponse;
+
   // If already looks like an ID (e.g., "discover_1376")
   if (input.startsWith("discover_")) {
-    const result = await collection.get({
-      ids: [input],
-      include: ["metadatas"],
-    });
+    result = await getByIds([input], ["metadatas", "embeddings"]);
 
     if (!result.ids?.[0]) {
       throw new Error(`Community not found with ID: ${input}`);
     }
+  } else {
+    // Normalize URL (remove trailing slash)
+    const normalizedUrl = input.replace(/\/$/, "");
 
-    return {
-      id: result.ids[0],
-      metadata: result.metadatas?.[0] as unknown as DiscourseMetadata,
-    };
+    // Search by URL in metadata
+    result = await getByMetadata({ url: normalizedUrl }, ["metadatas", "embeddings"]);
+
+    if (!result.ids?.[0]) {
+      // Try with trailing slash
+      result = await getByMetadata({ url: normalizedUrl + "/" }, ["metadatas", "embeddings"]);
+
+      if (!result.ids?.[0]) {
+        throw new Error(`Community not found with URL: ${input}`);
+      }
+    }
   }
 
-  // Normalize URL (remove trailing slash)
-  const normalizedUrl = input.replace(/\/$/, "");
-
-  // Search by URL in metadata
-  const result = await collection.get({
-    where: { url: normalizedUrl },
-    include: ["metadatas"],
-  });
-
-  if (!result.ids?.[0]) {
-    // Try with trailing slash
-    const resultWithSlash = await collection.get({
-      where: { url: normalizedUrl + "/" },
-      include: ["metadatas"],
-    });
-
-    if (!resultWithSlash.ids?.[0]) {
-      throw new Error(`Community not found with URL: ${input}`);
-    }
-
-    return {
-      id: resultWithSlash.ids[0],
-      metadata: resultWithSlash.metadatas?.[0] as unknown as DiscourseMetadata,
-    };
+  const embedding = result.embeddings?.[0];
+  if (!embedding) {
+    throw new Error(`Could not retrieve embedding for community: ${input}`);
   }
 
   return {
     id: result.ids[0],
     metadata: result.metadatas?.[0] as unknown as DiscourseMetadata,
+    embedding,
   };
 }
 
@@ -235,9 +229,6 @@ export const registerSearchDiscourseCommunities: RegisterFn = (server, ctx) => {
           };
         }
 
-        // Get ChromaDB collection
-        const collection = await getChromaCollection();
-
         // Build where clause from filters
         const whereClause = buildWhereClause({ min_users, engagement_tier, locale });
 
@@ -246,12 +237,8 @@ export const registerSearchDiscourseCommunities: RegisterFn = (server, ctx) => {
         let similarToRef: SimilarToReference | undefined;
 
         if (query) {
-          // Mode 1: Text search
-          const results = await collection.query({
-            queryTexts: [query],
-            nResults: limit,
-            where: whereClause as any,
-          });
+          // Mode 1: Text search via proxy
+          const results = await queryByText([query], limit, whereClause);
 
           communities = transformResults(
             results.ids[0] || [],
@@ -260,28 +247,13 @@ export const registerSearchDiscourseCommunities: RegisterFn = (server, ctx) => {
           );
           responseQuery = query;
         } else if (similar_to) {
-          // Mode 2: Nearest neighbors
-          const { id: sourceId, metadata: sourceMetadata } = await resolveToDocumentId(
-            collection,
+          // Mode 2: Nearest neighbors via proxy
+          const { id: sourceId, metadata: sourceMetadata, embedding } = await resolveToDocument(
             similar_to
           );
 
-          // Get the source document's embedding
-          const sourceDoc = await collection.get({
-            ids: [sourceId],
-            include: ["embeddings"],
-          });
-
-          if (!sourceDoc.embeddings?.[0]) {
-            throw new Error(`Could not retrieve embedding for community: ${similar_to}`);
-          }
-
           // Query for nearest neighbors using the embedding
-          const results = await collection.query({
-            queryEmbeddings: [sourceDoc.embeddings[0]],
-            nResults: limit + 1, // +1 because the source doc will be in results
-            where: whereClause as any,
-          });
+          const results = await queryByEmbedding([embedding], limit + 1, whereClause);
 
           // Transform and filter out the source document
           const allCommunities = transformResults(

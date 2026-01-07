@@ -3,12 +3,6 @@ import assert from "node:assert/strict";
 import { Logger } from "../util/logger.js";
 import { SiteState } from "../site/state.js";
 import { registerAllTools } from "../tools/registry.js";
-import { resetChromaClient } from "../chroma/client.js";
-
-// Reset ChromaDB client between tests
-test.beforeEach(() => {
-  resetChromaClient();
-});
 
 test("search_discourse_communities tool registration", async (t) => {
   await t.test("registers the tool", async () => {
@@ -88,30 +82,22 @@ test("search_discourse_communities env var validation", async (t) => {
 
   const handler = tools["search_discourse_communities"].handler;
 
-  await t.test("returns error when CHROMA env vars are missing", async () => {
-    // Ensure env vars are not set
-    const originalApiKey = process.env.CHROMA_API_KEY;
-    const originalTenant = process.env.CHROMA_TENANT;
-    const originalDatabase = process.env.CHROMA_DATABASE;
-
-    delete process.env.CHROMA_API_KEY;
-    delete process.env.CHROMA_TENANT;
-    delete process.env.CHROMA_DATABASE;
+  await t.test("returns error when CHROMA_PROXY_API_KEY is missing", async () => {
+    // Ensure API key is not set
+    const originalApiKey = process.env.CHROMA_PROXY_API_KEY;
+    delete process.env.CHROMA_PROXY_API_KEY;
 
     try {
-      resetChromaClient(); // Reset to pick up missing env vars
       const result = await handler({ query: "test" }, {});
       assert.ok(result.isError, "Should return error");
       assert.match(
         result.content[0].text,
-        /CHROMA/i,
-        "Error message should mention missing ChromaDB config"
+        /CHROMA_PROXY_API_KEY/i,
+        "Error message should mention missing API key"
       );
     } finally {
-      // Restore env vars
-      if (originalApiKey) process.env.CHROMA_API_KEY = originalApiKey;
-      if (originalTenant) process.env.CHROMA_TENANT = originalTenant;
-      if (originalDatabase) process.env.CHROMA_DATABASE = originalDatabase;
+      // Restore env var
+      if (originalApiKey) process.env.CHROMA_PROXY_API_KEY = originalApiKey;
     }
   });
 });
