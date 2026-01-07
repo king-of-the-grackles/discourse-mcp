@@ -45,11 +45,12 @@ function getClient(): ChromaClient {
 
   const { apiKey, tenant, database } = validateEnvVars();
 
+  // ChromaDB v3 client API for Chroma Cloud
   clientInstance = new ChromaClient({
-    path: "https://api.trychroma.com",
-    auth: {
-      provider: "token",
-      credentials: apiKey,
+    host: "api.trychroma.com",
+    ssl: true,
+    headers: {
+      "X-Chroma-Token": apiKey,
     },
     tenant,
     database,
