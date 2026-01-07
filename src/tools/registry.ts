@@ -23,6 +23,7 @@ import {
   registerSaveDraft,
   registerDeleteDraft,
 } from "./builtin/drafts.js";
+import { registerSearchDiscourseCommunities } from "./builtin/search_discourse_communities.js";
 
 export type ToolsMode = "auto" | "discourse_api_only" | "tool_exec_api";
 
@@ -68,4 +69,7 @@ export async function registerAllTools(
   registerGetDraft(server, ctx, { allowWrites: false });
   registerSaveDraft(server, ctx, { allowWrites: opts.allowWrites });
   registerDeleteDraft(server, ctx, { allowWrites: opts.allowWrites });
+
+  // Discovery tools - no site selection required, queries external ChromaDB
+  registerSearchDiscourseCommunities(server, ctx, { allowWrites: false });
 }
