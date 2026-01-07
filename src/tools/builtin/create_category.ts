@@ -7,21 +7,28 @@ export const registerCreateCategory: RegisterFn = (server, ctx, opts) => {
   if (!opts.allowWrites) return; // disabled by default
 
   const schema = z.object({
-    name: z.string().min(1).max(100),
-    color: z.string().regex(/^[0-9a-fA-F]{6}$/).optional(),
-    text_color: z.string().regex(/^[0-9a-fA-F]{6}$/).optional(),
-    emoji: z.string().optional(),
-    icon: z.string().optional(),
-    parent_category_id: z.number().int().positive().optional(),
-    description: z.string().min(1).max(10000).optional(),
+    name: z.string().min(1).max(100).describe("Category name (1-100 characters)"),
+    color: z.string().regex(/^[0-9a-fA-F]{6}$/).optional().describe("Background color as 6-digit hex without # (e.g., 'FF5733')"),
+    text_color: z.string().regex(/^[0-9a-fA-F]{6}$/).optional().describe("Text color as 6-digit hex without # (e.g., 'FFFFFF')"),
+    emoji: z.string().optional().describe("Category emoji icon (e.g., '📚' or 'books')"),
+    icon: z.string().optional().describe("Font Awesome icon name (e.g., 'book', 'cog')"),
+    parent_category_id: z.number().int().positive().optional().describe("Parent category ID for creating subcategories"),
+    description: z.string().min(1).max(10000).optional().describe("Category description shown to users"),
   });
 
   server.registerTool(
     "discourse_create_category",
     {
       title: "Create Category",
-      description: "Create a new category.",
+      description: "Create a new category in Discourse. Requires admin API key and write permissions. Rate limited to 1 request per second.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Create Discourse Category",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async (input: any, _extra: any) => {
       const { name, color, text_color, emoji, icon, parent_category_id, description } = schema.parse(input);

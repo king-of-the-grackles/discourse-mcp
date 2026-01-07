@@ -10,6 +10,13 @@ export const registerListUserChatChannels: RegisterFn = (server, ctx) => {
       title: "List User's Chat Channels",
       description: "List all chat channels for the currently authenticated user, including both public channels they're a member of and direct message channels. Includes unread tracking information.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "List My Discourse Chat Channels",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async (_args, _extra: any) => {
       try {

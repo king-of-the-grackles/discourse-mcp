@@ -108,10 +108,18 @@ export default function createServer({
     {
       name: "@discourse/mcp",
       version,
+      icons: [{
+        src: "https://raw.githubusercontent.com/discourse/discourse-mcp/main/assets/icon.svg",
+        sizes: ["512x512"],
+        mimeType: "image/svg+xml",
+      }],
+      websiteUrl: "https://github.com/discourse/discourse-mcp",
     },
     {
       capabilities: {
         tools: { listChanged: false },
+        prompts: { listChanged: false },
+        resources: { listChanged: false },
       },
     }
   );
@@ -141,6 +149,126 @@ export default function createServer({
     defaultSearchPrefix: config.default_search,
     maxReadLength: config.max_read_length ?? 50000,
   });
+
+  // Register prompts for Smithery quality score
+  server.registerPrompt(
+    "discourse-search-help",
+    {
+      title: "Discourse Search Helper",
+      description: "Generate an optimized search query for Discourse using search operators",
+      argsSchema: {
+        topic: z.string().describe("What you're searching for"),
+      },
+    },
+    async ({ topic }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Help me search Discourse for information about: ${topic}\n\nGenerate a search query using operators like @username, #tag, category:name, status:open, order:latest`,
+          },
+        },
+      ],
+    })
+  );
+
+  server.registerPrompt(
+    "discourse-post-draft",
+    {
+      title: "Draft Discourse Post",
+      description: "Help draft a well-structured Discourse post or reply",
+      argsSchema: {
+        type: z.enum(["question", "discussion", "announcement", "bug_report", "feature_request"]).describe("Type of post to draft"),
+        topic: z.string().describe("What the post is about"),
+      },
+    },
+    async ({ type, topic }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Help me draft a ${type.replace("_", " ")} post about: ${topic}\n\nProvide a well-structured post with appropriate formatting for Discourse, including a clear title suggestion and body content.`,
+          },
+        },
+      ],
+    })
+  );
+
+  server.registerPrompt(
+    "discourse-summarize-topic",
+    {
+      title: "Summarize Discourse Topic",
+      description: "Generate a summary of a Discourse topic discussion",
+      argsSchema: {
+        topic_id: z.number().describe("Topic ID to summarize"),
+        focus: z.enum(["key_points", "action_items", "decisions", "full"]).optional().describe("What aspect to focus on in the summary"),
+      },
+    },
+    async ({ topic_id, focus }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Please read topic ${topic_id} using discourse_read_topic and provide a ${focus || "full"} summary of the discussion.\n\nInclude the main points, any decisions made, and action items if applicable.`,
+          },
+        },
+      ],
+    })
+  );
+
+  server.registerPrompt(
+    "discourse-reply-suggestions",
+    {
+      title: "Suggest Reply to Topic",
+      description: "Generate thoughtful reply suggestions for a Discourse topic",
+      argsSchema: {
+        topic_id: z.number().describe("Topic ID to reply to"),
+        tone: z.enum(["helpful", "professional", "casual", "technical"]).optional().describe("Desired tone for the reply"),
+      },
+    },
+    async ({ topic_id, tone }) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Read topic ${topic_id} using discourse_read_topic and suggest a ${tone || "helpful"} reply that addresses the discussion.\n\nConsider the context and provide a constructive response.`,
+          },
+        },
+      ],
+    })
+  );
+
+  // Register resources for Smithery quality score
+  server.registerResource(
+    "site-info",
+    "discourse://site-info",
+    {
+      title: "Site Information",
+      description: "Current Discourse site configuration and connection status",
+      mimeType: "application/json",
+    },
+    async () => ({
+      contents: [
+        {
+          uri: "discourse://site-info",
+          text: JSON.stringify(
+            {
+              connected: siteState.getSiteBase() !== undefined,
+              site: siteState.getSiteBase(),
+              readOnly: !allowWrites,
+              toolsMode: config.tools_mode ?? "auto",
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    })
+  );
 
   // Skip remote tools discovery during initialization - it requires HTTP calls
   // Remote tools will be discovered lazily if needed
@@ -320,6 +448,12 @@ async function main() {
     {
       name: "@discourse/mcp",
       version,
+      icons: [{
+        src: "https://raw.githubusercontent.com/discourse/discourse-mcp/main/assets/icon.svg",
+        sizes: ["512x512"],
+        mimeType: "image/svg+xml",
+      }],
+      websiteUrl: "https://github.com/discourse/discourse-mcp",
     },
     {
       capabilities: {

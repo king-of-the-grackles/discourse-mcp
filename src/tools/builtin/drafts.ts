@@ -46,6 +46,13 @@ export const registerListDrafts: RegisterFn = (server, ctx, _opts) => {
       description:
         "List all drafts for the current user. Returns draft keys, sequences, and preview content. Use this to find existing drafts before updating them.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "List Discourse Drafts",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async (input: unknown, _extra: unknown) => {
       const { offset } = schema.parse(input);
@@ -128,6 +135,13 @@ export const registerGetDraft: RegisterFn = (server, ctx, _opts) => {
       description:
         'Retrieve a specific draft by its key. Common keys: "new_topic" for new topic drafts, "topic_<id>" for reply drafts.',
       inputSchema: schema.shape,
+      annotations: {
+        title: "Get Discourse Draft",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async (input: unknown, _extra: unknown) => {
       const { draft_key, sequence } = schema.parse(input);
@@ -226,6 +240,13 @@ export const registerSaveDraft: RegisterFn = (server, ctx, opts) => {
       description:
         "Create a draft topic, create a draft reply, or update an existing draft. Use this when the user wants to draft something without publishing immediately. For new topic drafts, use draft_key='new_topic'. For reply drafts, use draft_key='topic_<id>' (e.g., 'topic_123'). Returns the new sequence number for subsequent updates.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Save Discourse Draft",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async (input: unknown, _extra: unknown) => {
       const { draft_key, reply, title, category_id, tags, sequence, action } = schema.parse(input);
@@ -336,6 +357,13 @@ export const registerDeleteDraft: RegisterFn = (server, ctx, opts) => {
       description:
         "Delete a draft by its key. Requires the current sequence number from list/get operations to prevent conflicts.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Delete Discourse Draft",
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async (input: unknown, _extra: unknown) => {
       const { draft_key, sequence } = schema.parse(input);

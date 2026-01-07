@@ -7,8 +7,15 @@ export const registerListTags: RegisterFn = (server, ctx) => {
     "discourse_list_tags",
     {
       title: "List Tags",
-      description: "List tags (if enabled).",
+      description: "List all available tags on the Discourse site (if tagging is enabled). Returns tag names and usage counts. Use tags in search queries with #tagname.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "List Discourse Tags",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async (_args, _extra: any) => {
       try {

@@ -7,20 +7,27 @@ export const registerCreateTopic: RegisterFn = (server, ctx, opts) => {
   if (!opts.allowWrites) return; // disabled by default
 
   const schema = z.object({
-    title: z.string().min(1).max(300),
-    raw: z.string().min(1).max(30000),
-    category_id: z.number().int().positive().optional(),
-    tags: z.array(z.string().min(1).max(100)).max(10).optional(),
-    author_username: z.string().optional(),
-    author_user_id: z.number().optional(),
+    title: z.string().min(1).max(300).describe("Topic title (1-300 characters). Should be descriptive and searchable"),
+    raw: z.string().min(1).max(30000).describe("First post content in Markdown format. Supports Discourse formatting, mentions (@user), and attachments"),
+    category_id: z.number().int().positive().optional().describe("Category ID to post in. Use discourse_list_categories to find available categories"),
+    tags: z.array(z.string().min(1).max(100)).max(10).optional().describe("Array of tag names (max 10). Use discourse_list_tags to find available tags"),
+    author_username: z.string().optional().describe("Create topic on behalf of this username (requires admin API key)"),
+    author_user_id: z.number().optional().describe("Create topic on behalf of this user ID (requires admin API key)"),
   });
 
   server.registerTool(
     "discourse_create_topic",
     {
       title: "Create Topic",
-      description: "Create a new topic with the given title and first post.",
+      description: "Create a new topic with the given title and first post. Requires write permissions. Rate limited to 1 request per second.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Create Discourse Topic",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async (input: any, _extra: any) => {
       const { title, raw, category_id, tags, author_username, author_user_id } = schema.parse(input);

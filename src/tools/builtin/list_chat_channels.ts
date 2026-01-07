@@ -13,8 +13,15 @@ export const registerListChatChannels: RegisterFn = (server, ctx) => {
     "discourse_list_chat_channels",
     {
       title: "List Chat Channels",
-      description: "List all public chat channels visible to the current user. Returns channel information including title, description, and member counts.",
+      description: "List all public chat channels visible to the current user. Returns channel information including title, description, and member counts. Supports filtering and pagination.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "List Discourse Chat Channels",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ filter, limit = 25, offset = 0, status }, _extra: any) => {
       try {

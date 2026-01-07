@@ -3,16 +3,23 @@ import type { RegisterFn } from "../types.js";
 
 export const registerListUserPosts: RegisterFn = (server, ctx) => {
   const schema = z.object({
-    username: z.string().min(1),
-    page: z.number().int().min(0).optional(),
+    username: z.string().min(1).describe("The Discourse username to fetch posts for (without @ symbol, e.g., 'codinghorror')"),
+    page: z.number().int().min(0).optional().describe("Page number for pagination (0-based). Each page returns 30 posts. Default: 0"),
   });
 
   server.registerTool(
     "discourse_list_user_posts",
     {
       title: "List User Posts",
-      description: "Get a list of user posts and replies from a Discourse instance, with the most recent first. Returns 30 posts per page by default. Use the page parameter to paginate (page 0 = offset 0, page 1 = offset 30, etc.).",
+      description: "Get a paginated list of posts and replies by a specific user, with the most recent first. Returns 30 posts per page. Includes topic title, post date, excerpt, and direct links.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "List User's Discourse Posts",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ username, page }, _extra: any) => {
       try {

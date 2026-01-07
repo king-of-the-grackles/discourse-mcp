@@ -41,6 +41,13 @@ export const registerFilterTopics: RegisterFn = (server, ctx) => {
       title: "Filter Topics",
       description,
       inputSchema: schema.shape,
+      annotations: {
+        title: "Filter Discourse Topics",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ filter, page = 0, per_page }, _extra: any) => {
       try {

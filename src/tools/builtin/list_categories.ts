@@ -7,8 +7,15 @@ export const registerListCategories: RegisterFn = (server, ctx) => {
     "discourse_list_categories",
     {
       title: "List Categories",
-      description: "List categories visible to the current auth context.",
+      description: "List all categories visible to the current user. Returns category names and topic counts. Useful for discovering where to post or search.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "List Discourse Categories",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async (_args, _extra: any) => {
       try {

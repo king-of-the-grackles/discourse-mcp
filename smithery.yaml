@@ -6,3 +6,67 @@ build:
 
 startCommand:
   type: "http"
+  configSchema:
+    type: "object"
+    properties:
+      site:
+        type: "string"
+        format: "uri"
+        title: "Discourse Site URL"
+        description: "Full URL to your Discourse site (e.g., https://meta.discourse.org)"
+      api_key:
+        type: "string"
+        title: "Admin API Key"
+        description: "Discourse Admin API key for authenticated requests. Get this from Admin > API > New API Key"
+      api_username:
+        type: "string"
+        title: "API Username"
+        description: "Username associated with the Admin API key (usually 'system' or an admin username)"
+      user_api_key:
+        type: "string"
+        title: "User API Key"
+        description: "Discourse User API key (alternative to Admin API key). Generated via user-api-key flow"
+      user_api_client_id:
+        type: "string"
+        title: "User API Client ID"
+        description: "Client ID for User API key authentication. Generated when creating the User API key"
+      read_only:
+        type: "boolean"
+        title: "Read-Only Mode"
+        description: "When enabled, only read operations are allowed. Prevents creating posts, topics, or users"
+        default: true
+      allow_writes:
+        type: "boolean"
+        title: "Allow Write Operations"
+        description: "Enable topic/post creation and other write operations. Requires valid authentication"
+        default: false
+      tools_mode:
+        type: "string"
+        title: "Tools Mode"
+        description: "Which tools to expose: 'auto' detects available APIs, 'discourse_api_only' uses built-in tools only, 'tool_exec_api' includes remote tools"
+        enum: ["auto", "discourse_api_only", "tool_exec_api"]
+        default: "auto"
+      default_search:
+        type: "string"
+        title: "Default Search Prefix"
+        description: "Prefix automatically added to all search queries (e.g., 'category:support' to filter searches)"
+      max_read_length:
+        type: "integer"
+        title: "Max Content Length"
+        description: "Maximum characters to return per content item. Larger values return more content but may hit token limits"
+        default: 50000
+        minimum: 1000
+        maximum: 100000
+      log_level:
+        type: "string"
+        title: "Log Level"
+        description: "Logging verbosity: 'silent' for no logs, 'error' for errors only, 'info' for standard, 'debug' for verbose"
+        enum: ["silent", "error", "info", "debug"]
+        default: "info"
+    required: []
+  exampleConfig:
+    site: "https://meta.discourse.org"
+    read_only: true
+    tools_mode: "auto"
+    max_read_length: 50000
+    log_level: "info"

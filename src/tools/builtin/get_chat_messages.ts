@@ -18,6 +18,13 @@ export const registerGetChatMessages: RegisterFn = (server, ctx) => {
       title: "Get Chat Messages",
       description: "Get messages from a chat channel with flexible pagination and date-based filtering. Supports: (1) paginating with direction='past'/'future' from a target_message_id, (2) querying messages around a specific target_date, (3) getting messages around a target_message_id, or (4) fetching from last read position.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Get Discourse Chat Messages",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({
       channel_id,

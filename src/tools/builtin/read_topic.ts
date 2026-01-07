@@ -3,17 +3,24 @@ import type { RegisterFn } from "../types.js";
 
 export const registerReadTopic: RegisterFn = (server, ctx) => {
   const schema = z.object({
-    topic_id: z.number().int().positive(),
-    post_limit: z.number().int().min(1).max(100).optional(),
-    start_post_number: z.number().int().min(1).optional().describe("Start from this post number (1-based)")
+    topic_id: z.number().int().positive().describe("The numeric ID of the topic to read (e.g., 12345 from URL /t/topic-slug/12345)"),
+    post_limit: z.number().int().min(1).max(100).optional().describe("Maximum number of posts to retrieve (1-100). Default: 5"),
+    start_post_number: z.number().int().min(1).optional().describe("Start reading from this post number (1-based). Use for pagination through long topics")
   });
 
   server.registerTool(
     "discourse_read_topic",
     {
       title: "Read Topic",
-      description: "Read a topic metadata and first N posts.",
+      description: "Read a Discourse topic including its metadata (title, category, tags) and posts. Supports pagination for long topics.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Read Discourse Topic",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ topic_id, post_limit = 5, start_post_number }, _extra: any) => {
       try {

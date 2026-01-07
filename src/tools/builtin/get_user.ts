@@ -3,15 +3,22 @@ import type { RegisterFn } from "../types.js";
 
 export const registerGetUser: RegisterFn = (server, ctx) => {
   const schema = z.object({
-    username: z.string().min(1),
+    username: z.string().min(1).describe("The Discourse username to look up (without @ symbol, e.g., 'codinghorror')"),
   });
 
   server.registerTool(
     "discourse_get_user",
     {
       title: "Get User",
-      description: "Get basic user info.",
+      description: "Get information about a Discourse user by username. Returns name, trust level, join date, bio, and profile link.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Get Discourse User Info",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ username }, _extra: any) => {
       try {

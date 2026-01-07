@@ -3,15 +3,22 @@ import type { RegisterFn } from "../types.js";
 
 export const registerReadPost: RegisterFn = (server, ctx) => {
   const schema = z.object({
-    post_id: z.number().int().positive(),
+    post_id: z.number().int().positive().describe("The numeric post ID to read (found in post JSON data or API responses)"),
   });
 
   server.registerTool(
     "discourse_read_post",
     {
       title: "Read Post",
-      description: "Read a specific post.",
+      description: "Read a specific post by its ID. Returns the post content, author, creation date, and link to the post.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Read Discourse Post",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async ({ post_id }, _extra: any) => {
       try {

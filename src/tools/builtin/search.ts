@@ -3,17 +3,24 @@ import type { RegisterFn } from "../types.js";
 
 export const registerSearch: RegisterFn = (server, ctx) => {
   const schema = z.object({
-    query: z.string().min(1).describe("Search query"),
-    with_private: z.boolean().optional(),
-    max_results: z.number().int().min(1).max(50).optional(),
+    query: z.string().min(1).describe("Search query text (e.g., 'how to install plugin'). Supports Discourse search operators like @username, #tag, category:name, status:open, order:latest"),
+    with_private: z.boolean().optional().describe("Include private messages and topics in search results (requires authentication). Default: false"),
+    max_results: z.number().int().min(1).max(50).optional().describe("Maximum number of results to return (1-50). Default: 10"),
   });
 
   server.registerTool(
     "discourse_search",
     {
-      title: "Discourse Search",
-      description: "Search site content.",
+      title: "Search Discourse",
+      description: "Search Discourse site content including topics, posts, and users. Use search operators like @username, #tag, category:name for filtered results.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Search Discourse Content",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
     },
     async (args, _extra: any) => {
       const { query, with_private = false, max_results = 10 } = args;

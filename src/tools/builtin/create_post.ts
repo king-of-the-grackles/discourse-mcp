@@ -7,18 +7,25 @@ export const registerCreatePost: RegisterFn = (server, ctx, opts) => {
   if (!opts.allowWrites) return; // disabled by default
 
   const schema = z.object({
-    topic_id: z.number().int().positive(),
-    raw: z.string().min(1).max(30000),
-    author_username: z.string().optional(),
-    author_user_id: z.number().optional(),
+    topic_id: z.number().int().positive().describe("The topic ID to post a reply to (from URL /t/topic-slug/12345)"),
+    raw: z.string().min(1).max(30000).describe("The post content in Markdown format. Supports Discourse formatting, mentions (@user), and attachments"),
+    author_username: z.string().optional().describe("Post on behalf of this username (requires admin API key)"),
+    author_user_id: z.number().optional().describe("Post on behalf of this user ID (requires admin API key)"),
   });
 
   server.registerTool(
     "discourse_create_post",
     {
       title: "Create Post",
-      description: "Create a post in a topic.",
+      description: "Create a new post (reply) in an existing topic. Requires write permissions. Rate limited to 1 request per second.",
       inputSchema: schema.shape,
+      annotations: {
+        title: "Create Discourse Post",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
     },
     async (input: any, _extra: any) => {
       const { topic_id, raw, author_username, author_user_id } = schema.parse(input);
