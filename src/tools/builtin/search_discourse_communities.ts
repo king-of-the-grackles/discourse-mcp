@@ -88,6 +88,28 @@ function transformResults(
 }
 
 /**
+ * Rerank communities by confidence, engagement, and activity.
+ * Prioritizes high-engagement active communities when confidence scores are similar.
+ */
+function rerank(communities: Community[]): Community[] {
+  const tierOrder: Record<string, number> = { high: 3, medium: 2, low: 1, unknown: 0 };
+
+  return [...communities].sort((a, b) => {
+    // Primary: confidence score (from distance)
+    // Only use as tiebreaker if difference is significant (>0.1)
+    const confDiff = b.confidence - a.confidence;
+    if (Math.abs(confDiff) > 0.1) return confDiff;
+
+    // Secondary: engagement tier
+    const tierDiff = (tierOrder[b.engagement_tier] || 0) - (tierOrder[a.engagement_tier] || 0);
+    if (tierDiff !== 0) return tierDiff;
+
+    // Tertiary: active users in last 30 days
+    return b.active_users_30_days - a.active_users_30_days;
+  });
+}
+
+/**
  * Resolve a URL or ID to a document with its embedding.
  */
 async function resolveToDocument(
@@ -240,10 +262,12 @@ export const registerSearchDiscourseCommunities: RegisterFn = (server, ctx) => {
           // Mode 1: Text search via proxy
           const results = await queryByText([query], limit, whereClause);
 
-          communities = transformResults(
-            results.ids[0] || [],
-            results.metadatas?.[0] || [],
-            results.distances?.[0] || []
+          communities = rerank(
+            transformResults(
+              results.ids[0] || [],
+              results.metadatas?.[0] || [],
+              results.distances?.[0] || []
+            )
           );
           responseQuery = query;
         } else if (similar_to) {
@@ -255,14 +279,16 @@ export const registerSearchDiscourseCommunities: RegisterFn = (server, ctx) => {
           // Query for nearest neighbors using the embedding
           const results = await queryByEmbedding([embedding], limit + 1, whereClause);
 
-          // Transform and filter out the source document
+          // Transform, filter out the source document, and rerank
           const allCommunities = transformResults(
             results.ids[0] || [],
             results.metadatas?.[0] || [],
             results.distances?.[0] || []
           );
 
-          communities = allCommunities.filter((c) => c.id !== sourceId).slice(0, limit);
+          communities = rerank(
+            allCommunities.filter((c) => c.id !== sourceId)
+          ).slice(0, limit);
 
           similarToRef = {
             id: sourceId,

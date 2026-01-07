@@ -33,16 +33,16 @@ export function calculateConfidenceFromDistance(distance: number): number {
 /**
  * Classify match tier based on semantic distance.
  *
- * Breakpoints:
- * - <0.2:   exact      (highly relevant)
- * - <0.35:  semantic   (very relevant)
- * - <0.65:  adjacent   (somewhat relevant)
- * - >=0.65: peripheral (weakly relevant)
+ * Breakpoints (relaxed for ChromaDB all-MiniLM-L6-v2 embeddings):
+ * - <0.4:   exact      (highly relevant)
+ * - <0.6:   semantic   (very relevant)
+ * - <0.85:  adjacent   (somewhat relevant)
+ * - >=0.85: peripheral (weakly relevant)
  */
 export function classifyMatchTier(distance: number): MatchTier {
-  if (distance < 0.2) return "exact";
-  if (distance < 0.35) return "semantic";
-  if (distance < 0.65) return "adjacent";
+  if (distance < 0.4) return "exact";
+  if (distance < 0.6) return "semantic";
+  if (distance < 0.85) return "adjacent";
   return "peripheral";
 }
 

@@ -51,23 +51,23 @@ test("calculateConfidenceFromDistance", async (t) => {
 });
 
 test("classifyMatchTier", async (t) => {
-  await t.test('returns "exact" for distance < 0.2', () => {
+  await t.test('returns "exact" for distance < 0.4', () => {
     assert.equal(classifyMatchTier(0.1), "exact");
-    assert.equal(classifyMatchTier(0.19), "exact");
+    assert.equal(classifyMatchTier(0.39), "exact");
   });
 
-  await t.test('returns "semantic" for distance 0.2-0.35', () => {
-    assert.equal(classifyMatchTier(0.2), "semantic");
-    assert.equal(classifyMatchTier(0.34), "semantic");
+  await t.test('returns "semantic" for distance 0.4-0.6', () => {
+    assert.equal(classifyMatchTier(0.4), "semantic");
+    assert.equal(classifyMatchTier(0.59), "semantic");
   });
 
-  await t.test('returns "adjacent" for distance 0.35-0.65', () => {
-    assert.equal(classifyMatchTier(0.35), "adjacent");
-    assert.equal(classifyMatchTier(0.64), "adjacent");
+  await t.test('returns "adjacent" for distance 0.6-0.85', () => {
+    assert.equal(classifyMatchTier(0.6), "adjacent");
+    assert.equal(classifyMatchTier(0.84), "adjacent");
   });
 
-  await t.test('returns "peripheral" for distance >= 0.65', () => {
-    assert.equal(classifyMatchTier(0.65), "peripheral");
+  await t.test('returns "peripheral" for distance >= 0.85', () => {
+    assert.equal(classifyMatchTier(0.85), "peripheral");
     assert.equal(classifyMatchTier(1.0), "peripheral");
     assert.equal(classifyMatchTier(2.0), "peripheral");
   });
