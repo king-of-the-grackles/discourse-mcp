@@ -4,6 +4,7 @@
  */
 
 import { ChromaClient, type Collection } from "chromadb";
+import { DefaultEmbeddingFunction } from "@chroma-core/default-embed";
 
 const COLLECTION_NAME = "discourse_sites";
 
@@ -70,9 +71,13 @@ export async function getChromaCollection(): Promise<Collection> {
   }
 
   const client = getClient();
+  const embeddingFunction = new DefaultEmbeddingFunction();
 
   try {
-    collectionInstance = await client.getCollection({ name: COLLECTION_NAME });
+    collectionInstance = await client.getCollection({
+      name: COLLECTION_NAME,
+      embeddingFunction,
+    });
   } catch (error: any) {
     if (error?.message?.includes("does not exist")) {
       throw new Error(
