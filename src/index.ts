@@ -145,7 +145,7 @@ export default function createServer({
   registerAllTools(server as any, siteState, logger, {
     allowWrites,
     toolsMode: config.tools_mode ?? "auto",
-    hideSelectSite: true, // Always hide in Smithery mode (site is pre-configured)
+    hideSelectSite: false, // Allow site selection for flexibility
     defaultSearchPrefix: config.default_search,
     maxReadLength: config.max_read_length ?? 50000,
   });
