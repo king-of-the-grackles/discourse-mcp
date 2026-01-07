@@ -5,6 +5,18 @@
 
 import { ChromaClient, type Collection } from "chromadb";
 import { DefaultEmbeddingFunction } from "@chroma-core/default-embed";
+import { env } from "@huggingface/transformers";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+
+// Configure transformers.js with absolute paths to fix MCP server environment issues.
+// The default relative paths fail when the server runs from a different working directory.
+const require = createRequire(import.meta.url);
+const transformersPath = dirname(require.resolve("@huggingface/transformers"));
+env.cacheDir = join(transformersPath, ".cache");
+env.localModelPath = join(transformersPath, "models");
+env.allowLocalModels = true;
+env.useFSCache = true;
 
 const COLLECTION_NAME = "discourse_sites";
 
