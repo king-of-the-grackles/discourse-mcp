@@ -11,6 +11,20 @@ import createServer, { type SmitheryConfig } from "./index.js";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
 
+// Session lifecycle tuning. The previous implementation only removed a session
+// when the transport emitted `onclose`; clients that simply drop the connection
+// never trigger it, so the session map (and the fully-built MCP server it holds)
+// grew without bound until the process hit Node's heap limit and crashed.
+const SESSION_IDLE_TIMEOUT_MS = parseInt(process.env.SESSION_IDLE_TIMEOUT_MS || "600000", 10); // 10 min
+const SESSION_SWEEP_INTERVAL_MS = parseInt(process.env.SESSION_SWEEP_INTERVAL_MS || "60000", 10); // 1 min
+const MAX_SESSIONS = parseInt(process.env.MAX_SESSIONS || "500", 10);
+
+interface Session {
+  transport: StreamableHTTPServerTransport;
+  server: Awaited<ReturnType<typeof createServer>>;
+  lastSeen: number;
+}
+
 // Parse config from environment or use defaults
 function getConfig(): SmitheryConfig {
   // Smithery passes config via environment variables or query params
@@ -33,8 +47,40 @@ function getConfig(): SmitheryConfig {
 async function main() {
   console.log(`Starting Discourse MCP HTTP server on port ${PORT}...`);
 
-  // Track active transports for session management
-  const transports = new Map<string, StreamableHTTPServerTransport>();
+  // Track active sessions for lifecycle management.
+  const sessions = new Map<string, Session>();
+
+  // Tear down a session and release everything it holds (transport + the MCP
+  // server, which owns all registered tools/prompts/resources).
+  function closeSession(sessionId: string, reason: string) {
+    const session = sessions.get(sessionId);
+    if (!session) return;
+    sessions.delete(sessionId);
+    try {
+      session.transport.close();
+    } catch (err) {
+      console.error(`Error closing transport for ${sessionId}:`, err);
+    }
+    try {
+      session.server.close();
+    } catch (err) {
+      console.error(`Error closing server for ${sessionId}:`, err);
+    }
+    console.log(`Session closed (${reason}): ${sessionId}`);
+  }
+
+  // Periodic sweep: evict sessions that have been idle past the timeout. This is
+  // the backstop that prevents the leak when clients disconnect uncleanly.
+  const sweep = setInterval(() => {
+    const now = Date.now();
+    for (const [sessionId, session] of sessions) {
+      if (now - session.lastSeen > SESSION_IDLE_TIMEOUT_MS) {
+        closeSession(sessionId, "idle timeout");
+      }
+    }
+  }, SESSION_SWEEP_INTERVAL_MS);
+  // Don't keep the event loop alive just for the sweep timer.
+  sweep.unref();
 
   const httpServer = createHttpServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://localhost:${PORT}`);
@@ -51,9 +97,23 @@ async function main() {
       // Get session ID from header or generate new one
       const sessionId = req.headers["mcp-session-id"] as string || crypto.randomUUID();
 
-      let transport = transports.get(sessionId);
+      let session = sessions.get(sessionId);
 
-      if (!transport) {
+      if (!session) {
+        // Backstop against unbounded growth: if we're at capacity, evict the
+        // least-recently-used session before admitting a new one.
+        if (sessions.size >= MAX_SESSIONS) {
+          let oldestId: string | undefined;
+          let oldestSeen = Infinity;
+          for (const [id, s] of sessions) {
+            if (s.lastSeen < oldestSeen) {
+              oldestSeen = s.lastSeen;
+              oldestId = id;
+            }
+          }
+          if (oldestId) closeSession(oldestId, "max sessions reached");
+        }
+
         // Parse config from query params or use environment defaults
         const config: SmitheryConfig = {
           site: url.searchParams.get("site") || process.env.DISCOURSE_SITE || undefined,
@@ -73,27 +133,32 @@ async function main() {
         const mcpServer = createServer({ config });
 
         // Create transport
-        transport = new StreamableHTTPServerTransport({
+        const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => sessionId,
           onsessioninitialized: (id) => {
             console.log(`Session initialized: ${id}`);
           },
         });
 
-        transports.set(sessionId, transport);
+        session = { transport, server: mcpServer, lastSeen: Date.now() };
+        sessions.set(sessionId, session);
 
         // Connect server to transport
         await mcpServer.connect(transport);
 
-        // Clean up on close
+        // Clean up when the transport itself reports closure.
         transport.onclose = () => {
-          transports.delete(sessionId);
-          console.log(`Session closed: ${sessionId}`);
+          if (sessions.get(sessionId)?.transport === transport) {
+            closeSession(sessionId, "transport closed");
+          }
         };
       }
 
+      // Mark activity so the idle sweep doesn't reap a session that's in use.
+      session.lastSeen = Date.now();
+
       // Handle the request
-      await transport.handleRequest(req, res);
+      await session.transport.handleRequest(req, res);
       return;
     }
 
