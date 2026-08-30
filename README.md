@@ -1,5 +1,7 @@
 ## Discourse MCP
 
+[![smithery badge](https://smithery.ai/badge/king-of-the-grackles/discourse-mcp)](https://smithery.ai/server/king-of-the-grackles/discourse-mcp)
+
 A Model Context Protocol (MCP) stdio server that exposes Discourse forum capabilities as tools for AI agents.
 
 - **Entry point**: `src/index.ts` → compiled to `dist/index.js` (binary name: `discourse-mcp`)
@@ -200,7 +202,7 @@ pnpm build && pnpm dev
   - Logging/redaction: `src/util/logger.ts`, `src/util/redact.ts`
 
 - **Testing notes**
-  - Tests run with Node’s test runner against compiled artifacts (`dist/test/**/*.js`). Ensure `pnpm build` before `pnpm test` if invoking scripts individually.
+  - Tests run with Node's test runner against compiled artifacts (`dist/test/**/*.js`). Ensure `pnpm build` before `pnpm test` if invoking scripts individually.
 
 - **Publishing (optional)**
   - The package is published as `@discourse/mcp` and exposes a `bin` named `discourse-mcp`. Prefer `npx @discourse/mcp@latest` for frictionless usage.
